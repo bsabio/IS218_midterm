@@ -20,60 +20,60 @@ sys.path.append(os.path.join(os.path.dirname(__file__)))
 def load_plugins():
     plugins = {}
     plugin_dir = os.path.join(os.path.dirname(__file__), 'plugins')
+    if not os.path.exists(plugin_dir):
+        os.makedirs(plugin_dir)
     for filename in os.listdir(plugin_dir):
         if filename.endswith(".py") and filename != "__init__.py":
-            module_name = filename[:-3]  # Remove ".py" from filename
+            module_name = filename[:-3]
             module_path = f"plugins.{module_name}"
             try:
                 module = importlib.import_module(module_path)
                 if hasattr(module, 'run') and hasattr(module, 'name'):
+                    # Register the plugin's command name and function
                     plugins[module.name()] = module.run
                     logging.info(f"Loaded plugin: {module.name()}")
-                else:
-                    logging.warning(f"Plugin {module_name} is missing 'run' or 'name' function.")
             except ImportError as e:
                 logging.error(f"Failed to import plugin {module_name}: {e}")
     return plugins
 
 # Main calculator REPL with plugin support and history management
 def calculator_with_history():
+
     history_df = initialize_history()
+    
+    # Load plugins
     plugins = load_plugins()
 
     while True:
-        user_input = input("Enter command (or 'history', 'clear', 'exit'): ").strip().lower()
+        # Show dynamic menu with available commands
+        print("Available commands: add, subtract, multiply, divide, history, clear, exit")
+        print("Plugin commands: " + ", ".join(plugins.keys()))
         
+        user_input = input("Enter command: ").strip().lower()
+
         if user_input == "exit":
-            save_history(history_df)
             print("Goodbye!")
             break
         elif user_input == "history":
+            # Display history
             display_history(history_df)
         elif user_input == "clear":
+            # Clear history
             history_df = clear_history()
             print("History cleared.")
-        else:
-            parts = user_input.split()
-            if len(parts) != 3:
-                print("Invalid input. Enter: operation operand1 operand2")
-                continue
-
-            operation, operand1, operand2 = parts[0], parts[1], parts[2]
+        elif user_input in plugins:
+            # Execute plugin command
+            operand1 = float(input("Enter first operand: "))
+            operand2 = float(input("Enter second operand: "))
             try:
-                operand1, operand2 = float(operand1), float(operand2)
-            except ValueError:
-                print("Please enter valid numbers.")
-                continue
-
-            if operation in plugins:
-                try:
-                    result = plugins[operation](operand1, operand2)
-                    print(f"Result: {result}")
-                    history_df = add_to_history(history_df, operation, operand1, operand2, result)
-                except Exception as e:
-                    logging.error(f"Error in performing {operation}: {e}")
-            else:
-                print(f"Unknown operation: '{operation}'. Available plugins: {', '.join(plugins.keys())}")
+                result = plugins[user_input](operand1, operand2)
+                print(f"Result of {user_input}: {result}")
+                # Save to history
+                history_df = add_to_history(history_df, user_input, operand1, operand2, result)
+            except Exception as e:
+                print(f"Error: {e}")
+        else:
+            print("Unknown command. Type 'menu' to see available commands.")
 
 # Run the calculator
 if __name__ == "__main__":
