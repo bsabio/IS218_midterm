@@ -1,94 +1,79 @@
-import logging
-import pandas as pd
+import importlib
 import os
-
-# Set up logging configuration (to capture INFO-level logs)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]  # Output logs to the console (could be a file if desired)
+import sys
+import logging
+from history_manager import (
+    initialize_history, 
+    save_history, 
+    add_to_history, 
+    display_history, 
+    clear_history
 )
 
-HISTORY_FILE = "calculation_history.csv"
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
-# Initialize or load history
-def initialize_history():
-    if os.path.exists(HISTORY_FILE):
-        logging.info("Loading history from file.")
-        return pd.read_csv(HISTORY_FILE)
-    else:
-        logging.info("No history found, starting with an empty history.")
-        return pd.DataFrame(columns=["operation", "operand1", "operand2", "result"])
+# Ensure plugins folder is on path
+sys.path.append(os.path.join(os.path.dirname(__file__)))
 
-# Save history to CSV
-def save_history(history_df):
-    history_df.to_csv(HISTORY_FILE, index=False)
-    logging.info("History saved to file.")
+# Plugin loader: loads plugins from the plugins directory
+def load_plugins():
+    plugins = {}
+    plugin_dir = os.path.join(os.path.dirname(__file__), 'plugins')
+    for filename in os.listdir(plugin_dir):
+        if filename.endswith(".py") and filename != "__init__.py":
+            module_name = filename[:-3]  # Remove ".py" from filename
+            module_path = f"plugins.{module_name}"
+            try:
+                module = importlib.import_module(module_path)
+                if hasattr(module, 'run') and hasattr(module, 'name'):
+                    plugins[module.name()] = module.run
+                    logging.info(f"Loaded plugin: {module.name()}")
+                else:
+                    logging.warning(f"Plugin {module_name} is missing 'run' or 'name' function.")
+            except ImportError as e:
+                logging.error(f"Failed to import plugin {module_name}: {e}")
+    return plugins
 
-def add_to_history(history_df, operation, operand1, operand2, result):
-    new_entry = pd.DataFrame([{
-        "operation": operation,
-        "operand1": operand1,
-        "operand2": operand2,
-        "result": result
-    }])
-    history_df = pd.concat([history_df, new_entry], ignore_index=True)
-    return history_df
-
-
-# Calculator with history and logging
+# Main calculator REPL with plugin support and history management
 def calculator_with_history():
     history_df = initialize_history()
+    plugins = load_plugins()
 
     while True:
-        user_input = input("Enter command (or type 'history', 'clear', 'exit'): ").strip().lower()
-
+        user_input = input("Enter command (or 'history', 'clear', 'exit'): ").strip().lower()
+        
         if user_input == "exit":
             save_history(history_df)
-            logging.info("Exiting calculator.")
             print("Goodbye!")
             break
         elif user_input == "history":
-            print(history_df)
+            display_history(history_df)
         elif user_input == "clear":
-            history_df = pd.DataFrame(columns=["operation", "operand1", "operand2", "result"])
-            logging.info("History cleared.")
+            history_df = clear_history()
             print("History cleared.")
         else:
             parts = user_input.split()
             if len(parts) != 3:
-                logging.warning("Invalid input format.")
-                print("Invalid input. Enter in format: operation operand1 operand2")
+                print("Invalid input. Enter: operation operand1 operand2")
                 continue
 
             operation, operand1, operand2 = parts[0], parts[1], parts[2]
             try:
                 operand1, operand2 = float(operand1), float(operand2)
             except ValueError:
-                logging.warning("Invalid operand value.")
                 print("Please enter valid numbers.")
                 continue
 
-            # Perform the operation
-            if operation == "add":
-                result = operand1 + operand2
-            elif operation == "subtract":
-                result = operand1 - operand2
-            elif operation == "multiply":
-                result = operand1 * operand2
-            elif operation == "divide":
-                if operand2 == 0:
-                    logging.error("Attempted division by zero.")
-                    print("Error: Division by zero.")
-                    continue
-                result = operand1 / operand2
+            if operation in plugins:
+                try:
+                    result = plugins[operation](operand1, operand2)
+                    print(f"Result: {result}")
+                    history_df = add_to_history(history_df, operation, operand1, operand2, result)
+                except Exception as e:
+                    logging.error(f"Error in performing {operation}: {e}")
             else:
-                logging.error(f"Unknown operation: {operation}")
-                print("Unknown operation.")
-                continue
-
-            print("Result:", result)
-            history_df = add_to_history(history_df, operation, operand1, operand2, result)
+                print(f"Unknown operation: '{operation}'. Available plugins: {', '.join(plugins.keys())}")
 
 # Run the calculator
 if __name__ == "__main__":
