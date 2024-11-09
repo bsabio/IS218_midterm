@@ -40,3 +40,9 @@ jobs:
         with:
           name: coverage-report
           path: .coverage  # Uploads the coverage report to the GitHub Actions page for review
+          
+      - name: Run pylint
+        env:
+          PYTHONPATH: ./src
+        run: |
+          pylint src/ tests/
