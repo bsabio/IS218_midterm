@@ -1,0 +1,42 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'  # or the Python version you need
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov pylint
+
+      - name: Run pylint
+        run: |
+          pylint src/ tests/  # Lint the source and test directories
+        continue-on-error: true  # Optional: let the pipeline continue even if pylint fails
+
+      - name: Run tests with pytest and measure coverage
+        run: |
+          pytest --cov=src tests/
+        
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: .coverage  # Uploads the coverage report to the GitHub Actions page for review

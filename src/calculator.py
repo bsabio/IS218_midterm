@@ -40,7 +40,7 @@ def load_plugins():
 def calculator_with_history():
 
     history_df = initialize_history()
-    
+
     # Load plugins
     plugins = load_plugins()
 
@@ -58,8 +58,8 @@ def calculator_with_history():
             # Display history
             display_history(history_df)
         elif user_input == "clear":
-            # Clear history
-            history_df = clear_history()
+            # Pass history_df to clear_history to clear history correctly
+            history_df = clear_history(history_df)  # Fix here!
             print("History cleared.")
         elif user_input in plugins:
             # Execute plugin command
